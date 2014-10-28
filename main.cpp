@@ -8,24 +8,73 @@
 
 using namespace infinispan::hotrod;
 
+#ifndef DEFAULT_HOTROD_HOST
+#define DEFAULT_HOTROD_HOST "127.0.0.1"
+#endif
+
+#ifndef DEFAULT_HOTROD_PORT
+#define DEFAULT_HOTROD_PORT 11222
+#endif
+
 class Hotrod : public Php::Base, public Php::ArrayAccess {
 private:
-    RemoteCacheManager *_cm;
-    RemoteCache<std::string, std::string> *_cache;
+    RemoteCacheManager *_cm = nullptr;
+    RemoteCache<std::string, std::string> *_cache = nullptr;
 
     Php::Value _get(const Php::Value &key) {
-        std::string *pvalue = _cache->get(std::string((const char *) key));
+        std::string *pvalue = nullptr;
+        if (_cache != nullptr) {
+            try {
+                pvalue = _cache->get(std::string((const char *) key));
+            }
+            catch (...) {
+            }
+        }
         if (pvalue == nullptr) {
-            return Php::Value(pvalue);
+            return Php::Value(nullptr);
         }
         else {
-            return Php::Value(*pvalue);
+            return Php::call("unserialize", Php::Value(*pvalue));
+        }
+    }
+
+    void _put(const Php::Value &key, const Php::Value &value, int64_t life, int64_t idle) {
+        if (_cache != nullptr) {
+            try {
+                std::string k = std::string((const char *) key);
+                std::string v = std::string((const char *) Php::call("serialize", value));
+                _cache->put(k, v, (uint64_t) life, (uint64_t) idle);
+            }
+            catch (...) {
+            }
+        }
+    }
+
+    void _remove(const Php::Value &key) {
+        if (_cache != nullptr) {
+            try {
+                _cache->remove(std::string((const char *) key));
+            }
+            catch (...) {
+            }
         }
     }
 
 public:
+    // The constructor doesn't get passed arguments from the new statement in php.
     Hotrod() {}
-    virtual ~Hotrod() {}
+
+    // Is this best to do here, or in an __destruct() function?
+    virtual ~Hotrod() {
+        if (_cache != nullptr) {
+            delete _cache;
+            _cache = nullptr;
+        }
+        if (_cm != nullptr) {
+            delete _cm;
+            _cm = nullptr;
+        }
+    }
 
     void __construct(Php::Parameters &params) {
         std::string hostname;
@@ -35,25 +84,36 @@ public:
             hostname = std::string((const char *) params[0]);
         }
         else {
-            hostname = "127.0.0.1";
+            hostname = DEFAULT_HOTROD_HOST;
         }
 
         if (params.size() > 1) {
             port = params[1];
         }
         else {
-            port = 11222;
+            port = DEFAULT_HOTROD_PORT;
         }
     
-        ConfigurationBuilder b;
-        b.addServer().host(hostname).port(port);
-        _cm = new RemoteCacheManager(b.build(), false);
-        _cache = new RemoteCache<std::string, std::string>(_cm->getCache<std::string, std::string>());
-        _cm->start();
+        try {
+            ConfigurationBuilder b;
+            b.addServer().host(hostname).port(port);
+            _cm = new RemoteCacheManager(b.build(), false);
+            _cm->start();
+            _cache = new RemoteCache<std::string, std::string>(_cm->getCache<std::string, std::string>());
+        }
+        catch (...) {
+        }
     }
 
     virtual bool offsetExists(const Php::Value &key) override {
-        return _cache->containsKey(std::string((const char *) key));
+        if (_cache != nullptr) {
+            try {
+                return _cache->containsKey(std::string((const char *) key));
+            }
+            catch (...) {
+            }
+        }
+        return false;
     }
 
     virtual Php::Value offsetGet(const Php::Value &key) override {
@@ -61,11 +121,11 @@ public:
     }
 
     virtual void offsetSet(const Php::Value &key, const Php::Value &value) override {
-        _cache->put(std::string((const char *) key), std::string((const char *) value));
+        _put(key, value, 0, 0);
     }
 
     virtual void offsetUnset(const Php::Value &key) override {
-        _cache->remove(std::string((const char *) key));
+        _remove(key);
     }
 
     Php::Value get(Php::Parameters &params) {
@@ -73,8 +133,6 @@ public:
     }
 
     void put(Php::Parameters &params) {
-        std::string key = std::string((const char *) params[0]);
-        std::string value = std::string((const char *) params[1]);
         int64_t life = 0;
         int64_t idle = 0;
         if (params.size() > 2) {
@@ -83,23 +141,56 @@ public:
         if (params.size() > 3) {
             idle = params[3];
         }
-        _cache->put(key, value, (uint64_t) life, (uint64_t) idle);
+        _put(params[0], params[1], (uint64_t) life, (uint64_t) idle);
     }
 
     void remove(Php::Parameters &params) {
-        _cache->remove(std::string((const char *) params[0]));
+        if (_cache != nullptr) {
+            try {
+                _cache->remove(params[0]);
+            }
+            catch (...) {
+            }
+        }
     }
 
     void clear() {
-        _cache->clear();
+        if (_cache != nullptr) {
+            try {
+                _cache->clear();
+            }
+            catch (...) {
+            }
+        }
     }
 
     Php::Value stats() {
-        return Php::Value(_cache->stats());
+        if (_cache != nullptr) {
+            try {
+                return Php::Value(_cache->stats());
+            }
+            catch (...) {
+            }
+       }
+       return Php::Value(nullptr);
     }
 
     Php::Value size() {
-        return Php::Value((int64_t) _cache->size());
+        if (_cache != nullptr) {
+            try {
+                return Php::Value((int64_t) _cache->size());
+            }
+            catch (...) {
+            }
+        }
+        return Php::Value(nullptr);
+    }
+
+    Php::Value __invoke(Php::Parameters &params) {
+        if (_cache != nullptr) {
+          return true;
+        }
+        return false;
     }
 };
 
@@ -124,8 +215,8 @@ extern "C" {
         Php::Class<Hotrod> hotrod("Hotrod");
 
         hotrod.method("__construct", &Hotrod::__construct, {
-            Php::ByVal("hostname", Php::Type::String),
-            Php::ByVal("port", Php::Type::Numeric)
+            Php::ByVal("hostname", Php::Type::String, false),
+            Php::ByVal("port", Php::Type::Numeric, false)
         });
 
         hotrod.method("put", &Hotrod::put, {
@@ -145,11 +236,9 @@ extern "C" {
 
         hotrod.method("clear", &Hotrod::clear);
         hotrod.method("stats", &Hotrod::stats);
-        hotrod.method("size",  &Hotrod::stats);
+        hotrod.method("size",  &Hotrod::size);
 
         extension.add(std::move(hotrod));
-        
-        // @todo    add your own functions, classes, namespaces to the extension
         
         // return the extension
         return extension;

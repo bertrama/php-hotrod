@@ -112,6 +112,7 @@ MKDIR				=	mkdir -p
 
 SOURCES				=	$(wildcard *.cpp)
 OBJECTS				=	$(SOURCES:%.cpp=%.o)
+TESTS				=       $(wildcard *.php)
 
 
 #
@@ -123,15 +124,16 @@ all:					${OBJECTS} ${EXTENSION}
 ${EXTENSION}:			${OBJECTS}
 						${LINKER} ${LINKER_FLAGS} -o $@ ${OBJECTS} ${LINKER_DEPENDENCIES}
 
-${OBJECTS}:
+${OBJECTS}: ${SOURCES}
 						${COMPILER} ${COMPILER_FLAGS} $@ ${@:%.o=%.cpp}
 
-install:		
+install: ${EXTENSION}
 						${CP} ${EXTENSION} ${EXTENSION_DIR}
 						${CP} ${INI} ${INI_DIR}
 				
+.PHONY: clean ${TESTS}
 clean:
 						${RM} ${EXTENSION} ${OBJECTS}
-
-test:
-	php test.php
+test: ${TESTS}
+${TESTS}:
+	php $@
