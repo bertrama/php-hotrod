@@ -35,20 +35,21 @@ using namespace infinispan::hotrod;
 #define HOTROD_INI_DEFAULT_TCP_NO_DELAY        true
 #define HOTROD_INI_DEFAULT_VALUE_SIZE_ESTIMATE 512
 
-class Hotrod : public Php::Base, public Php::ArrayAccess {
+class HotRod : public Php::Base, public Php::ArrayAccess {
 private:
+    int _verbosity = HOTROD_VERBOSITY_SILENT;
+    std::string *_name = nullptr;
     RemoteCacheManager *_cm = nullptr;
     RemoteCache<std::string, std::string> *_cache = nullptr;
-    int _verbosity = HOTROD_VERBOSITY_SILENT;
 
-    Php::Value _get(const Php::Value &key) {
+    Php::Value doGet(const Php::Value &key) {
         std::string *pvalue = nullptr;
         if (_cache != nullptr) {
             try {
                 pvalue = _cache->get(std::string((const char *) key));
             }
             catch (...) {
-                tell("Hotrod::get(): failed");
+                tell("HotRod::get(): failed");
             }
         }
         if (pvalue == nullptr) {
@@ -59,7 +60,7 @@ private:
         }
     }
 
-    void _put(const Php::Value &key, const Php::Value &value, int64_t life, int64_t idle) {
+    void doPut(const Php::Value &key, const Php::Value &value, int64_t life, int64_t idle) {
         if (_cache != nullptr) {
             try {
                 std::string k = std::string((const char *) key);
@@ -67,18 +68,18 @@ private:
                 _cache->put(k, v, (uint64_t) life, (uint64_t) idle);
             }
             catch (...) {
-                tell("Hotrod::put(): failed");
+                tell("HotRod::put(): failed");
             }
         }
     }
 
-    void _remove(const Php::Value &key) {
+    void doRemove(const Php::Value &key) {
         if (_cache != nullptr) {
             try {
                 _cache->remove(std::string((const char *) key));
             }
             catch (...) {
-                tell("Hotrod::remove(): failed");
+                tell("HotRod::remove(): failed");
             }
         }
     }
@@ -127,10 +128,10 @@ public:
     static const int ERROR     = HOTROD_VERBOSITY_ERROR;
 
     // The constructor doesn't get passed arguments from the new statement in php.
-    Hotrod() {}
+    HotRod() {}
 
     // Is this best to do here, or in an __destruct() function?
-    virtual ~Hotrod() {
+    virtual ~HotRod() {
         if (_cache != nullptr) {
             delete _cache;
             _cache = nullptr;
@@ -138,6 +139,10 @@ public:
         if (_cm != nullptr) {
             delete _cm;
             _cm = nullptr;
+        }
+        if (_name != nullptr) {
+            delete _name;
+            _name = nullptr;
         }
     }
 
@@ -158,8 +163,13 @@ public:
         else {
             port = HOTROD_DEFAULT_PORT;
         }
+
         if (params.size() > 2) {
-            _verbosity = params[2];
+            _name = new std::string((const char *) params[2]);
+        }
+
+        if (params.size() > 3) {
+            _verbosity = params[3];
         }
     
         try {
@@ -167,10 +177,15 @@ public:
             b.addServer().host(hostname).port(port);
             _cm = new RemoteCacheManager(b.build(), false);
             _cm->start();
-            _cache = new RemoteCache<std::string, std::string>(_cm->getCache<std::string, std::string>());
+            if (_name == nullptr) {
+                _cache = new RemoteCache<std::string, std::string>(_cm->getCache<std::string, std::string>());
+            }
+            else {
+                _cache = new RemoteCache<std::string, std::string>(_cm->getCache<std::string, std::string>(_name));
+            }
         }
         catch (...) {
-            tell("Hotrod::constructor(): failed");
+            tell("HotRod::constructor(): failed");
         }
     }
 
@@ -180,26 +195,26 @@ public:
                 return _cache->containsKey(std::string((const char *) key));
             }
             catch (...) {
-                tell("Hotrod::offsetExists(): failed");
+                tell("HotRod::offsetExists(): failed");
             }
         }
         return false;
     }
 
     virtual Php::Value offsetGet(const Php::Value &key) override {
-        return _get(key);
+        return doGet(key);
     }
 
     virtual void offsetSet(const Php::Value &key, const Php::Value &value) override {
-        _put(key, value, 0, 0);
+        doPut(key, value, 0, 0);
     }
 
     virtual void offsetUnset(const Php::Value &key) override {
-        _remove(key);
+        doRemove(key);
     }
 
     Php::Value get(Php::Parameters &params) {
-        return _get(params[0]);
+        return doGet(params[0]);
     }
 
     void put(Php::Parameters &params) {
@@ -211,11 +226,11 @@ public:
         if (params.size() > 3) {
             idle = params[3];
         }
-        _put(params[0], params[1], (uint64_t) life, (uint64_t) idle);
+        doPut(params[0], params[1], (uint64_t) life, (uint64_t) idle);
     }
 
     void remove(Php::Parameters &params) {
-        _remove(params[0]);
+        doRemove(params[0]);
     }
 
     void clear() {
@@ -224,7 +239,7 @@ public:
                 _cache->clear();
             }
             catch (...) {
-                tell("Hotrod::clear(): failed");
+                tell("HotRod::clear(): failed");
             }
         }
     }
@@ -235,7 +250,7 @@ public:
                 return Php::Value(_cache->stats());
             }
             catch (...) {
-                tell("Hotrod::stats(): failed");
+                tell("HotRod::stats(): failed");
             }
        }
        return Php::Value(nullptr);
@@ -247,7 +262,7 @@ public:
                 return Php::Value((int64_t) _cache->size());
             }
             catch (...) {
-                tell("Hotrod::size(): failed");
+                tell("HotRod::size(): failed");
             }
         }
         return Php::Value(nullptr);
@@ -279,32 +294,33 @@ extern "C" {
         // for the entire duration of the process (that's why it's static)
         static Php::Extension extension("hotrod", "1.0");
 
-        Php::Class<Hotrod> hotrod("Hotrod");
+        Php::Class<HotRod> hotrod("HotRod");
 
-        hotrod.method("__construct", &Hotrod::__construct, {
+        hotrod.method("__construct", &HotRod::__construct, {
             Php::ByVal("hostname", Php::Type::String, false),
             Php::ByVal("port", Php::Type::Numeric, false),
+            Php::ByVal("name", Php::Type::String, false),
             Php::ByVal("verbosity", Php::Type::Numeric, false)
         });
 
-        hotrod.method("put", &Hotrod::put, {
+        hotrod.method("put", &HotRod::put, {
             Php::ByVal("key", Php::Type::String),
-            Php::ByVal("value", Php::Type::String),
+            Php::ByVal("value"),
             Php::ByVal("life", Php::Type::Numeric, false),
             Php::ByVal("idle", Php::Type::Numeric, false)
         });
 
-        hotrod.method("get", &Hotrod::get, {
+        hotrod.method("get", &HotRod::get, {
             Php::ByVal("key", Php::Type::String)
         });
 
-        hotrod.method("remove", &Hotrod::remove, {
+        hotrod.method("remove", &HotRod::remove, {
             Php::ByVal("key", Php::Type::String)
         });
 
-        hotrod.method("clear", &Hotrod::clear);
-        hotrod.method("stats", &Hotrod::stats);
-        hotrod.method("size",  &Hotrod::size);
+        hotrod.method("clear", &HotRod::clear);
+        hotrod.method("stats", &HotRod::stats);
+        hotrod.method("size",  &HotRod::size);
 
         extension.add(Php::Ini( HOTROD_INI_CONNECTION_TIMEOUT, HOTROD_INI_DEFAULT_CONNECTION_TIMEOUT ));
         extension.add(Php::Ini( HOTROD_INI_FORCE_RETURN_VALUES, HOTROD_INI_DEFAULT_FORCE_RETURN_VALUES ));
