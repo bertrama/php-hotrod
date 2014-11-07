@@ -1,6 +1,6 @@
 <?php
 
-  $hotrod = new Hotrod('localhost');
+  $hotrod = new HotRod\Simple('localhost');
   if ($hotrod()) {
     print "HOTROD Succesful\n";
   }
@@ -13,7 +13,7 @@
 
   
   print "Testing Hotrod\n";
-  $hotrod = new Hotrod('localhost', 18210);
+  $hotrod = new HotRod\Simple('localhost', 18210);
   if ($hotrod()) {
     print "HOTROD Succesful\n";
   }
