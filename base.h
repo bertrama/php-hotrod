@@ -24,6 +24,7 @@ namespace HotRod {
         virtual void doClear();
         virtual std::map<std::string, std::string> getStats();
         virtual uint64_t getSize();
+        virtual std::set<std::tr1::shared_ptr<std::string>> getKeys();
 
     public:
         Base &setHostname(const std::string &hostname) {

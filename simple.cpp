@@ -10,17 +10,17 @@ Php::Value HotRod::Simple::doGetPhp(const Php::Value &key) {
     }
 
     if (pvalue == nullptr) {
-        return Php::Value(nullptr);
+        return nullptr;
     }
     else {
-        return Php::call("unserialize", Php::Value(*pvalue));
+        return Php::call("unserialize", *pvalue);
     }
 }
 
-void HotRod::Simple::doPutPhp(const Php::Value &key, const Php::Value &value, int64_t life, int64_t idle) {
+void HotRod::Simple::doPutPhp(const Php::Value &key, const Php::Value &value, uint64_t life, uint64_t idle) {
     try {
         std::string serialized = Php::call("serialize", value);
-        doPut(key, serialized, (uint64_t) life, (uint64_t) idle);
+        doPut(key, serialized, life, idle);
     }
     catch (...) {
         tell("HotRod::put(): failed");
@@ -29,7 +29,7 @@ void HotRod::Simple::doPutPhp(const Php::Value &key, const Php::Value &value, in
     
 void HotRod::Simple::doRemovePhp(const Php::Value &key) {
     try {
-        doRemove(std::string((const char *) key));
+        doRemove(key);
     }
     catch (...) {
         tell("HotRod::remove(): failed");
@@ -81,7 +81,7 @@ HotRod::Simple::~Simple() {
 void HotRod::Simple::__construct(Php::Parameters &params) {
 
     if (params.size() > 0) {
-        _hostname = std::string((const char *) params[0]);
+        _hostname = params[0].stringValue();
     }
 
     if (params.size() > 1) {
@@ -89,7 +89,7 @@ void HotRod::Simple::__construct(Php::Parameters &params) {
     }
     
     if (params.size() > 2) {
-        _name = new std::string((const char *) params[2]);
+        _name = new std::string(params[2].stringValue());
     }
 
     if (params.size() > 3) {
@@ -97,8 +97,7 @@ void HotRod::Simple::__construct(Php::Parameters &params) {
     }
     
     try {
-      initializeCacheManager();
-      initializeCache();
+        initialize();
     }
     catch (...) {
         tell("HotRod::constructor(): failed");
@@ -108,7 +107,7 @@ void HotRod::Simple::__construct(Php::Parameters &params) {
 bool HotRod::Simple::offsetExists(const Php::Value &key) {
     if (_cache != nullptr) {
         try {
-            return _cache->containsKey(std::string((const char *) key));
+            return _cache->containsKey(key);
         }
         catch (...) {
             tell("HotRod::offsetExists(): failed");
@@ -142,7 +141,7 @@ void HotRod::Simple::put(Php::Parameters &params) {
     if (params.size() > 3) {
         idle = params[3];
     }
-    doPutPhp(params[0], params[1], (uint64_t) life, (uint64_t) idle);
+    doPutPhp(params[0], params[1], uint64_t(life), uint64_t(idle));
 }
 
 void HotRod::Simple::remove(Php::Parameters &params) {
@@ -160,22 +159,22 @@ void HotRod::Simple::clear() {
 
 Php::Value HotRod::Simple::stats() {
     try {
-        return Php::Value(getStats());
+        return getStats();
     }
     catch (...) {
         tell("HotRod::stats(): failed");
     }
-    return Php::Value(nullptr);
+    return nullptr;
 }
 
 Php::Value HotRod::Simple::size() {
     try {
-        return Php::Value((int64_t) getSize());
+        return int64_t(getSize());
     }
     catch (...) {
         tell("HotRod::size(): failed");
     }
-    return Php::Value(nullptr);
+    return nullptr;
 }
 
 Php::Value HotRod::Simple::__invoke(Php::Parameters &params) {

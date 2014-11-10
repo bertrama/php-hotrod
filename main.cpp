@@ -8,6 +8,7 @@
 
 #include "hotrod.h"
 #include "simple.h"
+#include "drupal_cache.h"
 
 
 /**
@@ -56,6 +57,25 @@ extern "C" {
         simple.method("stats", &HotRod::Simple::stats);
         simple.method("size",  &HotRod::Simple::size);
 
+        Php::Class<HotRod::DrupalCache> drupalCache("HotRod\\DrupalCache");
+
+        drupalCache.method("__construct", &HotRod::DrupalCache::__construct, {
+          Php::ByVal("bin", Php::Type::String, true)
+        });
+
+        drupalCache.method("get", &HotRod::DrupalCache::get, {
+          Php::ByVal("cid", Php::Type::String, true)
+        });
+
+        drupalCache.method("clear", &HotRod::DrupalCache::clear);
+
+        drupalCache.method("getMultiple", &HotRod::DrupalCache::getMultiple, {
+          Php::ByRef("cids", Php::Type::Array, true)
+        });
+
+        drupalCache.method("isEmpty", &HotRod::DrupalCache::isEmpty);
+        drupalCache.method("set", &HotRod::DrupalCache::set);
+
         extension.add(Php::Ini( HOTROD_INI_CONNECTION_TIMEOUT, HOTROD_INI_DEFAULT_CONNECTION_TIMEOUT ));
         extension.add(Php::Ini( HOTROD_INI_FORCE_RETURN_VALUES, HOTROD_INI_DEFAULT_FORCE_RETURN_VALUES ));
         extension.add(Php::Ini( HOTROD_INI_KEY_SIZE_ESTIMATE, HOTROD_INI_DEFAULT_KEY_SIZE_ESTIMATE ));
@@ -66,6 +86,7 @@ extern "C" {
         extension.add(Php::Ini( HOTROD_INI_VALUE_SIZE_ESTIMATE, HOTROD_INI_DEFAULT_VALUE_SIZE_ESTIMATE ));
 
         extension.add(std::move(simple));
+        extension.add(std::move(drupalCache));
         
         // return the extension
         return extension;

@@ -18,12 +18,8 @@ HotRod::Base::~Base() {
 }
 
 void HotRod::Base::initialize() {
-    try {
-        initializeCacheManager();
-        initializeCache();
-    }
-    catch (...) {
-    }
+    initializeCacheManager();
+    initializeCache();
 }
 
 void HotRod::Base::initializeCacheManager() {
@@ -92,3 +88,9 @@ uint64_t HotRod::Base::getSize() {
     return 0;
 }
 
+std::set<std::tr1::shared_ptr<std::string>> HotRod::Base::getKeys() {
+    if (_cache != nullptr) {
+        return _cache->keySet();
+    }
+    return std::set<std::tr1::shared_ptr<std::string>>();
+}

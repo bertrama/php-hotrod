@@ -97,9 +97,10 @@ LINKER_DEPENDENCIES	=	-Llib -lphpcpp -lhotrod
 #	So you can probably leave this as it is
 #
 
-RM					=	rm -f
-CP					=	cp -f
-MKDIR				=	mkdir -p
+RM		=	rm -f
+CP		=	cp -f
+MKDIR		=	mkdir -p
+PHP		=	/usr/bin/php
 
 
 #
@@ -112,8 +113,12 @@ MKDIR				=	mkdir -p
 
 SOURCES				=	$(wildcard *.cpp)
 OBJECTS				=	$(SOURCES:%.cpp=%.o)
-TESTS				=       $(wildcard *.php)
-
+TESTS_SIMPLE			=       $(wildcard tests/simple/*.phpt)
+TESTS_DRUPAL_CACHE		=       $(wildcard tests/drupal_cache/*.phpt)
+TESTS				=	${TESTS_SIMPLE} ${TESTS_DRUPAL_CACHE}
+TESTS_EXTENSION_DIR	=	$$PWD/tests/ext_lib
+PHP_OPTS	=	-d extension_dir=${TESTS_EXTENSION_DIR} -d extension=${EXTENSION}
+RUN_TESTS	=	bin/run-tests.php
 
 #
 #	From here the build instructions start
@@ -131,9 +136,22 @@ install: ${EXTENSION}
 						${CP} ${EXTENSION} ${EXTENSION_DIR}
 						${CP} ${INI} ${INI_DIR}
 				
-.PHONY: clean ${TESTS}
-clean:
-						${RM} ${EXTENSION} ${OBJECTS}
-test: ${TESTS}
-${TESTS}:
-	php $@
+.PHONY: clean test-simple test-drupal-cache test test-init
+
+clean: test-clean
+	${RM} ${EXTENSION} ${OBJECTS}
+
+test: test-init test-simple test-drupal-cache
+
+test-init:
+	mkdir -p ${TESTS_EXTENSION_DIR}
+	cp ${EXTENSION} ${EXTENSION_DIR}/*.so ${TESTS_EXTENSION_DIR}
+
+test-simple: test-init
+	${RUN_TESTS} ${PHP_OPTS} -p ${PHP} ${TESTS_SIMPLE}
+
+test-drupal-cache: test-init
+	${RUN_TESTS} ${PHP_OPTS} -p ${PHP} ${TESTS_DRUPAL_CACHE}
+
+test-clean:
+	rm tests/ext_lib/*.so

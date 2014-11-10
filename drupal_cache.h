@@ -7,14 +7,12 @@
 namespace HotRod {
 
     class DrupalCache : public Base, public Php::Base {
-    private:
-        Php::Value doGet(Php::Value cid);
-        void doClear(Php::Value cid, Php::Value wildcard);
-        Php::Value doGetMultiple(Php::Value &cids);
-        Php::Value doIsEmpty();
-        void doSet(Php::Value cid, Php::Value data, Php::Value expire);
-
     public:
+        /**
+         * HotRod::DrupalCache::__construct($bin);
+         */
+        void __construct(Php::Parameters &params);
+
         /**
          * HotRod::DrupalCache::get($cid).
          *

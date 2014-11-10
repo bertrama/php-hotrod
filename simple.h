@@ -10,7 +10,7 @@ namespace HotRod {
         int _verbosity = HOTROD_VERBOSITY_SILENT;
 
         Php::Value doGetPhp(const Php::Value &key); 
-        void doPutPhp(const Php::Value &key, const Php::Value &value, int64_t life, int64_t idle); 
+        void doPutPhp(const Php::Value &key, const Php::Value &value, uint64_t life, uint64_t idle); 
         void doRemovePhp(const Php::Value &key); 
         void tell(std::string message);
 
